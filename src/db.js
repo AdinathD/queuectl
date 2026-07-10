@@ -11,6 +11,15 @@ if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM' || err.code === 'EINVAL';
+  }
+}
+
 /**
  * Acquire lock using fs.openSync with 'wx' flag (exclusive create).
  * If the lock file exists, we will retry after a short delay.
@@ -29,12 +38,21 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
       if (err.code === 'EEXIST') {
         // Lock file exists, check if it's stale (e.g. process that created it died)
         try {
-          const stats = fs.statSync(LOCK_FILE);
-          // If lock is older than 30 seconds, consider it stale and delete it
-          if (Date.now() - stats.mtimeMs > 30000) {
-            try {
+          const ownerPidStr = fs.readFileSync(LOCK_FILE, 'utf8').trim();
+          if (ownerPidStr === "") {
+            // Empty lock file is stale. Delete it immediately.
+            fs.unlinkSync(LOCK_FILE);
+          } else {
+            const ownerPid = parseInt(ownerPidStr, 10);
+            if (!isNaN(ownerPid)) {
+              if (!isProcessAlive(ownerPid)) {
+                // Process is dead! The lock is stale. Delete it immediately.
+                fs.unlinkSync(LOCK_FILE);
+              }
+            } else {
+              // Invalid PID format is stale. Delete it.
               fs.unlinkSync(LOCK_FILE);
-            } catch (_) {}
+            }
           }
         } catch (_) {}
 
