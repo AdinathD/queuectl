@@ -225,9 +225,29 @@ program
   .command('list')
   .description('List jobs (optionally filtered by state)')
   .option('--state <state>', 'Filter jobs by state')
+  .option('--json', 'Output in JSON format')
   .action((options) => {
     const jobs = listJobs(options.state);
-    console.log(JSON.stringify(jobs, null, 2));
+    
+    if (options.json) {
+      console.log(JSON.stringify(jobs, null, 2));
+      return;
+    }
+
+    if (jobs.length === 0) {
+      console.log('No matching jobs found.');
+      return;
+    }
+
+    console.log('=== Jobs List ===');
+    jobs.forEach(j => {
+      console.log(`- ID: ${j.id}`);
+      console.log(`  Command:  "${j.command}"`);
+      console.log(`  State:    ${j.state}`);
+      console.log(`  Attempts: ${j.attempts}/${j.max_retries}`);
+      console.log(`  Created:  ${j.created_at}`);
+      console.log('--------------------------------------------------');
+    });
   });
 
 // 5. DLQ command group
