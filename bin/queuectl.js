@@ -47,6 +47,15 @@ function parseRunAt(val) {
   throw new Error(`Invalid run_at value: "${val}". Expected ISO timestamp or delay in seconds.`);
 }
 
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM' || err.code === 'EINVAL';
+  }
+}
+
 program
   .name('queuectl')
   .description('QueueCTL - CLI Background Job Queue System')
@@ -114,30 +123,65 @@ worker
   .option('-c, --count <count>', 'Number of background workers to start', (val) => parseInt(val, 10), 1)
   .action((options) => {
     const count = options.count;
-    console.log(`Starting ${count} worker(s)...`);
-
     const workerPath = path.join(__dirname, '../src/worker.js');
-    const spawnedPids = [];
-
-    for (let i = 0; i < count; i++) {
-      const child = fork(workerPath, [], {
-        detached: true,
-        stdio: 'ignore'
-      });
-      child.unref(); // Let parent CLI process exit
-      spawnedPids.push(child.pid);
-    }
-
     const pidsFile = path.join(DB_DIR, 'workers.pids');
+
     let existingPids = [];
     if (fs.existsSync(pidsFile)) {
       try {
         existingPids = JSON.parse(fs.readFileSync(pidsFile, 'utf8'));
       } catch (_) { }
     }
-    fs.writeFileSync(pidsFile, JSON.stringify([...existingPids, ...spawnedPids]));
 
-    console.log(`Started workers with PIDs: ${spawnedPids.join(', ')}`);
+    if (count === 1) {
+      console.log(`Starting worker in the foreground (PID: ${process.pid})...`);
+      fs.writeFileSync(pidsFile, JSON.stringify([...existingPids, process.pid]));
+      
+      const { runWorker } = require('../src/worker');
+      runWorker();
+    } else {
+      console.log(`Starting ${count} workers in the foreground...`);
+      const children = [];
+      const spawnedPids = [];
+
+      for (let i = 0; i < count; i++) {
+        const child = fork(workerPath, [], {
+          stdio: 'inherit'
+        });
+        children.push(child);
+        spawnedPids.push(child.pid);
+      }
+
+      fs.writeFileSync(pidsFile, JSON.stringify([...existingPids, ...spawnedPids]));
+      console.log(`Workers started with PIDs: ${spawnedPids.join(', ')}`);
+
+      let exitCount = 0;
+      const handleSignal = (signal) => {
+        console.log(`\n[Parent Process] Received ${signal}. Shutting down workers gracefully...`);
+        // SIGINT is broadcasted to the process group automatically by the terminal/OS.
+        // We only need to propagate other signals like SIGTERM manually.
+        if (signal !== 'SIGINT') {
+          children.forEach(child => {
+            try {
+              child.kill(signal);
+            } catch (_) {}
+          });
+        }
+      };
+
+      process.on('SIGINT', () => handleSignal('SIGINT'));
+      process.on('SIGTERM', () => handleSignal('SIGTERM'));
+
+      children.forEach(child => {
+        child.on('exit', () => {
+          exitCount++;
+          if (exitCount === children.length) {
+            console.log('All workers terminated. Exiting parent.');
+            process.exit(0);
+          }
+        });
+      });
+    }
   });
 
 worker
@@ -171,20 +215,12 @@ worker
 
     let sentSignalsCount = 0;
     pids.forEach(pid => {
-      try {
-        // Check if process exists
-        process.kill(pid, 0);
-        console.log(`Sending SIGTERM to worker ${pid}...`);
-        process.kill(pid, 'SIGTERM');
-        sentSignalsCount++;
-      } catch (err) {
-        if (err.code === 'EPERM') {
-          try {
-            console.log(`Sending SIGTERM to worker ${pid}...`);
-            process.kill(pid, 'SIGTERM');
-            sentSignalsCount++;
-          } catch (_) { }
-        }
+      if (isProcessAlive(pid)) {
+        try {
+          console.log(`Sending SIGTERM to worker ${pid}...`);
+          process.kill(pid, 'SIGTERM');
+          sentSignalsCount++;
+        } catch (_) {}
       }
     });
 
