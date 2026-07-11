@@ -163,6 +163,13 @@ function runWorker() {
       currentJob = null;
       const now = new Date().toISOString();
 
+      if (stdout && stdout.trim()) {
+        console.log(stdout.trim());
+      }
+      if (stderr && stderr.trim()) {
+        console.error(stderr.trim());
+      }
+
       if (error) {
         // Job execution failed
         const newAttempts = job.attempts + 1;
