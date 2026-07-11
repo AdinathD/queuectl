@@ -56,6 +56,17 @@ function isProcessAlive(pid) {
   }
 }
 
+
+function readActivePids(pidsFile) {
+  if (!fs.existsSync(pidsFile)) return [];
+  try {
+    const filePids = JSON.parse(fs.readFileSync(pidsFile, 'utf8'));
+    return filePids.filter(pid => isProcessAlive(pid));
+  } catch (_) {
+    return [];
+  }
+}
+
 program
   .name('queuectl')
   .description('QueueCTL - CLI Background Job Queue System')
@@ -126,12 +137,7 @@ worker
     const workerPath = path.join(__dirname, '../src/worker.js');
     const pidsFile = path.join(DB_DIR, 'workers.pids');
 
-    let existingPids = [];
-    if (fs.existsSync(pidsFile)) {
-      try {
-        existingPids = JSON.parse(fs.readFileSync(pidsFile, 'utf8'));
-      } catch (_) { }
-    }
+    const existingPids = readActivePids(pidsFile);
 
     if (count === 1) {
       console.log(`Starting worker in the foreground (PID: ${process.pid})...`);
@@ -193,13 +199,7 @@ worker
   .action(() => {
     console.log('Stopping workers gracefully...');
     const pidsFile = path.join(DB_DIR, 'workers.pids');
-    let pids = [];
-
-    if (fs.existsSync(pidsFile)) {
-      try {
-        pids = JSON.parse(fs.readFileSync(pidsFile, 'utf8'));
-      } catch (_) { }
-    }
+    let pids = readActivePids(pidsFile);
 
     // Fallback: Check active workers in database stats
     const stats = getStats();
@@ -225,7 +225,7 @@ worker
     transaction((db) => {
       if (db.activeWorkers) {
         pids.forEach(pid => {
-          if (db.activeWorkers[pid]) {
+          if (db.activeWorkers[pid] && isProcessAlive(pid)) {
             db.activeWorkers[pid].shutdown_requested = true;
           }
         });

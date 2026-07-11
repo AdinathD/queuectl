@@ -75,6 +75,9 @@ function getStats() {
         // If worker updated heartbeat in the last 10 seconds, count as active
         if (now - details.last_seen < 10000) {
           activeWorkers.push({ pid: parseInt(pid), ...details });
+        } else if (now - details.last_seen > 30000) {
+          // If worker is stale for more than 30s, delete it from the DB
+          delete db.activeWorkers[pid];
         }
       }
     }
