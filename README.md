@@ -19,6 +19,23 @@
 
 ## Architecture Overview
 
+### Project Directory Structure
+```text
+├── bin/
+│   └── queuectl.js        # CLI Command Definition Entrypoint
+├── src/
+│   ├── db.js              # Atomic Concurrency-Safe Transactional DB Engine
+│   ├── queue.js           # Core Queue state logic, heartbeats, and statistics
+│   ├── worker.js          # Foreground worker execution loops, timeout, and recovery
+│   ├── config.js          # Configuration helpers
+│   └── server.js          # Express API server for the Visual dashboard
+├── dashboard/             # React visual dashboard interface (Vite)
+├── tests/                 # Integration and E2E verification test suite
+├── DECISIONS.md           # Architecture Decisions & Internship Answers
+├── design.md              # Graphics-rich Flow Lifecycles & Call Diagrams
+└── README.md              # Core Setup, Command Usage, and System Guides
+```
+
 ### 1. Concurrency-Safe Persistent Storage (`src/db.js`)
 All job, worker, and configuration states are persisted in a local JSON database file (`db.json`) inside the user's application data directory.
 To prevent concurrent worker threads from writing at the same time or double-acquiring a job, `src/db.js` implemented a custom filesystem-based transactional lock using exclusive file descriptors (`fs.openSync` with the `'wx'` flag). If a process holds the lock, other workers wait and retry.
