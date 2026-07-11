@@ -75,22 +75,22 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[Worker Starts] --> B[Start 1s Background Interval]
-    B --> C[Send Heartbeat: last_seen = Date.now()]
+    B --> C["Send Heartbeat (last_seen = Date.now())"]
     C --> D[Is Job Executing?]
-    D -- Yes --> E[Status: 'executing job_id']
-    D -- No --> F[Status: 'polling']
+    D -- Yes --> E["Status: 'executing job_id'"]
+    D -- No --> F["Status: 'polling'"]
     E --> G[Sleep 1s]
     F --> G
     G --> C
 
     H[Any Active Worker Polls] --> I[Scan Jobs in 'processing' State]
     I --> J{Is worker_pid alive?}
-    J -- Yes: now - last_seen < 10s --> K[Do Nothing]
-    J -- No: missing or silent > 10s --> L[Reclaim Job]
+    J -- "Yes: now - last_seen < 10s" --> K[Do Nothing]
+    J -- "No: missing or silent > 10s" --> L[Reclaim Job]
     L --> M[Increment attempts + Clear worker_pid]
-    M --> N{attempts >= max_retries?}
-    N -- Yes --> O[Set state: 'dead']
-    N -- No --> P[Set state: 'failed' + Set run_at with backoff]
+    M --> N{"attempts >= max_retries?"}
+    N -- Yes --> O["Set state: 'dead'"]
+    N -- No --> P["Set state: 'failed' + Set run_at with backoff"]
     O --> Q[Delete Stale Worker from activeWorkers]
     P --> Q
 ```
