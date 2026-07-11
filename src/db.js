@@ -54,14 +54,14 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
               fs.unlinkSync(LOCK_FILE);
             }
           }
-        } catch (_) {}
+        } catch (_) { }
 
         if (Date.now() - start > timeoutMs) {
           throw new Error('Lock acquisition timed out');
         }
         // Sleep using synchronous block/wait
         const waitTill = Date.now() + retryIntervalMs;
-        while (Date.now() < waitTill) {}
+        while (Date.now() < waitTill) { }
       } else {
         throw err;
       }
@@ -104,7 +104,23 @@ function readDbRaw() {
 function writeDbRaw(data) {
   const tempPath = `${DB_FILE}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(tempPath, DB_FILE);
+  
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      fs.renameSync(tempPath, DB_FILE);
+      break;
+    } catch (err) {
+      if ((err.code === 'EPERM' || err.code === 'EACCES') && retries > 1) {
+        retries--;
+        // Sleep 10ms
+        const waitTill = Date.now() + 10;
+        while (Date.now() < waitTill) {}
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 /**

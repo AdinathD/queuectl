@@ -115,7 +115,9 @@ function retryDlqJob(id) {
 function workerHeartbeat(pid, statusMsg = 'idle') {
   transaction((db) => {
     if (!db.activeWorkers) db.activeWorkers = {};
+    const existing = db.activeWorkers[pid] || {};
     db.activeWorkers[pid] = {
+      ...existing,
       last_seen: Date.now(),
       status: statusMsg
     };
