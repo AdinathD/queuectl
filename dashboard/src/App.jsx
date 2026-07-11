@@ -19,6 +19,7 @@ function App() {
   const [editMaxRetries, setEditMaxRetries] = useState('');
   const [editBackoffBase, setEditBackoffBase] = useState('');
   const [editTimeout, setEditTimeout] = useState('');
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
 
   // Status message
@@ -38,16 +39,27 @@ function App() {
         axios.get(`${API_BASE}/config`)
       ]);
 
+      const maxRetriesVal = configRes.data['max-retries'] !== undefined ? configRes.data['max-retries'] : (configRes.data.max_retries || 3);
+      const backoffBaseVal = configRes.data['backoff-base'] !== undefined ? configRes.data['backoff-base'] : (configRes.data.backoff_base || 2);
+      const timeoutVal = configRes.data.timeout !== undefined ? configRes.data.timeout : 30;
+
       setStats(statsRes.data);
       setJobs(jobsRes.data);
-      setConfig(configRes.data);
-
-      if (editMaxRetries === '') setEditMaxRetries(configRes.data.max_retries);
-      if (editBackoffBase === '') setEditBackoffBase(configRes.data.backoff_base);
-      if (editTimeout === '') setEditTimeout(configRes.data.timeout || 30);
+      setConfig({
+        max_retries: maxRetriesVal,
+        backoff_base: backoffBaseVal,
+        timeout: timeoutVal
+      });
     } catch (err) {
       console.error('Error fetching data from API:', err);
     }
+  };
+
+  const handleStartEdit = () => {
+    setEditMaxRetries(config.max_retries);
+    setEditBackoffBase(config.backoff_base);
+    setEditTimeout(config.timeout || 30);
+    setIsEditingConfig(true);
   };
 
   useEffect(() => {
@@ -118,6 +130,7 @@ function App() {
       const p3 = axios.post(`${API_BASE}/config`, { key: 'timeout', value: editTimeout });
       await Promise.all([p1, p2, p3]);
       showMessage('Configuration updated successfully', 'success');
+      setIsEditingConfig(false);
       fetchData();
     } catch (err) {
       showMessage('Error saving configuration', 'error');
@@ -335,51 +348,84 @@ function App() {
             </form>
           </div>
 
-          {/* Configurations Form */}
+          {/* Configurations Panel */}
           <div className="glass-panel rounded-2xl p-5">
             <h3 className="m-0 mb-4 text-base font-semibold text-white">Queue Settings</h3>
-            <form onSubmit={handleSaveConfig} className="space-y-4">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5 font-medium">Max Retries</label>
-                <input
-                  type="number"
-                  value={editMaxRetries}
-                  onChange={(e) => setEditMaxRetries(e.target.value)}
-                  min="0"
-                  required
-                  className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
-                />
+            {!isEditingConfig ? (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-xs text-slate-400 font-medium">Max Retries</span>
+                  <span className="text-sm font-bold text-slate-200">{config.max_retries}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-xs text-slate-400 font-medium">Backoff Base</span>
+                  <span className="text-sm font-bold text-slate-200">{config.backoff_base}s</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-xs text-slate-400 font-medium">Job Timeout</span>
+                  <span className="text-sm font-bold text-slate-200">{config.timeout}s</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartEdit}
+                  className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-200 font-semibold text-sm py-2.5 px-4 rounded-lg transition-all cursor-pointer"
+                >
+                  Edit Settings
+                </button>
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5 font-medium">Backoff Base (seconds)</label>
-                <input
-                  type="number"
-                  value={editBackoffBase}
-                  onChange={(e) => setEditBackoffBase(e.target.value)}
-                  min="1"
-                  required
-                  className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5 font-medium">Job Timeout (seconds)</label>
-                <input
-                  type="number"
-                  value={editTimeout}
-                  onChange={(e) => setEditTimeout(e.target.value)}
-                  min="1"
-                  required
-                  className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={savingConfig}
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-200 font-semibold text-sm py-2.5 px-4 rounded-lg transition-all cursor-pointer"
-              >
-                {savingConfig ? 'Saving...' : 'Update Settings'}
-              </button>
-            </form>
+            ) : (
+              <form onSubmit={handleSaveConfig} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-medium">Max Retries</label>
+                  <input
+                    type="number"
+                    value={editMaxRetries}
+                    onChange={(e) => setEditMaxRetries(e.target.value)}
+                    min="0"
+                    required
+                    className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-medium">Backoff Base (seconds)</label>
+                  <input
+                    type="number"
+                    value={editBackoffBase}
+                    onChange={(e) => setEditBackoffBase(e.target.value)}
+                    min="1"
+                    required
+                    className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5 font-medium">Job Timeout (seconds)</label>
+                  <input
+                    type="number"
+                    value={editTimeout}
+                    onChange={(e) => setEditTimeout(e.target.value)}
+                    min="1"
+                    required
+                    className="w-full bg-black/25 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3.5 py-2 rounded-lg text-white text-sm transition-all"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingConfig(false)}
+                    className="w-1/2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 font-semibold text-sm py-2 px-4 rounded-lg transition-all cursor-pointer border-none"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingConfig}
+                    className="w-1/2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm py-2 px-4 rounded-lg shadow-lg transition-all cursor-pointer border-none"
+                  >
+                    {savingConfig ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
         </div>

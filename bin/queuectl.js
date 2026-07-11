@@ -92,25 +92,46 @@ program
     }
 
     rawArg = rawArg.trim();
+    let cleanedArg = rawArg;
+
+    // Strip wrapping single or double quotes added by Windows shells
+    if (cleanedArg.startsWith("'") && cleanedArg.endsWith("'")) {
+      cleanedArg = cleanedArg.slice(1, -1).trim();
+    }
+    if (cleanedArg.startsWith('"') && cleanedArg.endsWith('"')) {
+      cleanedArg = cleanedArg.slice(1, -1).trim();
+    }
+
     let cmd = rawArg;
     let id = null;
     let runAtVal = options.runAt;
 
     // Try parsing JSON if it starts with '{' and ends with '}'
-    if (rawArg.startsWith('{') && rawArg.endsWith('}')) {
+    if (cleanedArg.startsWith('{') && cleanedArg.endsWith('}')) {
       try {
-        const parsed = JSON.parse(rawArg);
+        let parsed;
+        try {
+          parsed = JSON.parse(cleanedArg);
+        } catch (e) {
+          // Simple quote healer for basic JSON command structures
+          const healed = cleanedArg
+            .replace(/([{,])\s*([a-zA-Z0-9_-]+)\s*:/g, '$1"$2":') // Quote keys
+            .replace(/:\s*([^,}]+)/g, ':"$1"');                  // Quote values
+          parsed = JSON.parse(healed);
+        }
+
         if (parsed.command) {
           cmd = parsed.command;
         }
         if (parsed.id) {
           id = parsed.id;
         }
-        if (parsed.run_at && !runAtVal) {
-          runAtVal = parsed.run_at;
+        const runAtField = parsed.run_at || parsed['run-at'] || parsed['--run-at'];
+        if (runAtField && !runAtVal) {
+          runAtVal = runAtField;
         }
       } catch (e) {
-        // Not valid JSON, treat the whole argument as a string command
+        // Fallback to treating entire rawArg as a string command
       }
     }
 
@@ -174,7 +195,7 @@ worker
           });
         }
       };
-          //ctrc c
+      //ctrc c
       process.on('SIGINT', () => handleSignal('SIGINT'));
 
       //failsafe in case the parent process is targeted from diff terminal using pid

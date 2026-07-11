@@ -126,6 +126,22 @@ Enqueued job successfully:
 }
 ```
 
+Enqueue jobs with custom properties (such as custom IDs) using a JSON string:
+```bash
+$ queuectl enqueue '{"id":"job1","command":"sleep 2"}'
+Enqueued job successfully:
+{
+  "id": "job1",
+  "command": "sleep 2",
+  "state": "pending",
+  "attempts": 0,
+  "max_retries": 3,
+  "created_at": "2026-07-11T14:26:40.435Z",
+  "updated_at": "2026-07-11T14:26:40.435Z",
+  "run_at": "2026-07-11T14:26:40.435Z"
+}
+```
+
 Enqueue scheduled jobs to run in the future:
 ```bash
 $ queuectl enqueue "echo 'Hello scheduled!'" --run-at 10
