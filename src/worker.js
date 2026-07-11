@@ -9,6 +9,7 @@ let currentChildProcess = null;
 // Graceful shutdown registration
 process.on('SIGINT', handleShutdown);
 process.on('SIGTERM', handleShutdown);
+process.on('SIGBREAK', handleShutdown);
 
 function handleShutdown() {
   console.log(`[Worker ${process.pid}] Shutting down gracefully...`);
@@ -43,6 +44,12 @@ function runWorker() {
     const job = transaction((db) => {
       const now = new Date();
 
+      // Check if this worker was requested to shut down remotely
+      if (db.activeWorkers && db.activeWorkers[process.pid] && db.activeWorkers[process.pid].shutdown_requested) {
+        shouldExit = true;
+        return null;
+      }
+
       // Find a job that is pending or failed and ready to run
       const eligibleJob = db.jobs.find(j => {
         if (j.state !== 'pending' && j.state !== 'failed') return false;
@@ -59,6 +66,10 @@ function runWorker() {
     });
 
     if (!job) {
+      if (shouldExit) {
+        cleanupAndExit();
+        return;
+      }
       // Nothing to process, poll again in 1 second
       setTimeout(poll, 1000);
       return;

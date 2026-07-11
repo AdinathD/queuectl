@@ -136,7 +136,7 @@ worker
     if (count === 1) {
       console.log(`Starting worker in the foreground (PID: ${process.pid})...`);
       fs.writeFileSync(pidsFile, JSON.stringify([...existingPids, process.pid]));
-      
+
       const { runWorker } = require('../src/worker');
       runWorker();
     } else {
@@ -164,13 +164,16 @@ worker
           children.forEach(child => {
             try {
               child.kill(signal);
-            } catch (_) {}
+            } catch (_) { }
           });
         }
       };
-
+          //ctrc c
       process.on('SIGINT', () => handleSignal('SIGINT'));
+
+      //failsafe in case the parent process is targeted from diff terminal using pid
       process.on('SIGTERM', () => handleSignal('SIGTERM'));
+      process.on('SIGBREAK', () => handleSignal('SIGBREAK'));
 
       children.forEach(child => {
         child.on('exit', () => {
@@ -213,14 +216,31 @@ worker
       return;
     }
 
+    //only flagging for failsafe, signal should ideally stop worker
+    //in case signal fails in some edge cases
+    //worker will exit on next poll if not stopped by signal so it wont hang forever
+
+    // Mark workers for shutdown in database transaction
+    const { transaction } = require('../src/db');
+    transaction((db) => {
+      if (db.activeWorkers) {
+        pids.forEach(pid => {
+          if (db.activeWorkers[pid]) {
+            db.activeWorkers[pid].shutdown_requested = true;
+          }
+        });
+      }
+    });
+
     let sentSignalsCount = 0;
     pids.forEach(pid => {
       if (isProcessAlive(pid)) {
         try {
-          console.log(`Sending SIGTERM to worker ${pid}...`);
-          process.kill(pid, 'SIGTERM');
+          const sig = process.platform === 'win32' ? 'SIGBREAK' : 'SIGTERM';
+          console.log(`Sending ${sig} to worker ${pid}...`);
+          process.kill(pid, sig);
           sentSignalsCount++;
-        } catch (_) {}
+        } catch (_) { }
       }
     });
 
@@ -264,7 +284,7 @@ program
   .option('--json', 'Output in JSON format')
   .action((options) => {
     const jobs = listJobs(options.state);
-    
+
     if (options.json) {
       console.log(JSON.stringify(jobs, null, 2));
       return;
