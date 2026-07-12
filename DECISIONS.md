@@ -6,8 +6,25 @@ This document outlines the key architectural decisions, recovery mechanics, and 
 
 ### Question 1: Which exact line(s) prevent two workers from claiming the same job, and why is that operation atomic across separate OS processes?
 * **Exact Line(s)**: 
-  * [src/db.js:L32](file:///c:/Adinath/flam/antig/src/db.js#L32): `const fd = fs.openSync(LOCK_FILE, 'wx');` (Acquires exclusive write-lock).
-  * [src/worker.js:L114-L125](file:///c:/Adinath/flam/antig/src/worker.js#L114-L125) (Queries and flags the eligible job inside the transaction block).
+  * [src/db.js:L32](file:///c:/Adinath/flam/queuectl/src/db.js#L32) - Exclusive database write-lock acquisition:
+    ```javascript
+    const fd = fs.openSync(LOCK_FILE, 'wx');
+    ```
+  * [src/worker.js:L114-L125](file:///c:/Adinath/flam/queuectl/src/worker.js#L114-L125) - Querying and marking the eligible job inside the database transaction:
+    ```javascript
+    const eligibleJob = db.jobs.find(j => {
+      if (j.state !== 'pending' && j.state !== 'failed') return false;
+      if (j.run_at && new Date(j.run_at) > now) return false;
+      return true;
+    });
+
+    if (eligibleJob) {
+      eligibleJob.state = 'processing';
+      eligibleJob.worker_pid = process.pid;
+      eligibleJob.updated_at = now.toISOString();
+      return { ...eligibleJob }; // return a snapshot copy
+    }
+    ```
 * **Why it is atomic**:
   * **OS-Level Lock**: Node's `'wx'` flag maps to the kernel's atomic `O_CREAT | O_EXCL` flags. The operating system kernel guarantees that if multiple processes try to create `db.lock` simultaneously, only one succeeds and receives a file descriptor; the rest fail with `EEXIST` and must wait.
   * **Mutual Exclusion**: While a worker holds this lock, no other process can read or write `db.json`. Thus, the step finding the job and marking it as `processing` runs with absolute mutual exclusion, preventing any duplicate claims.
