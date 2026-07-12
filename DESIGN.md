@@ -40,38 +40,9 @@ stateDiagram-v2
 
 ---
 
-### B. Concurrency-Safe Database Transaction Flow
-```mermaid
-sequenceDiagram
-    participant Process as Worker/CLI Process
-    participant FS as File System (OS Kernel)
-    participant Lock as db.lock
-    participant DB as db.json
-
-    Process->>FS: openSync("db.lock", "wx")
-    alt Lock file already exists (EEXIST)
-        FS-->>Process: Error EEXIST
-        Process->>Process: Read PID in db.lock
-        Process->>FS: isProcessAlive(PID)?
-        alt Process is Dead
-            Process->>FS: unlinkSync("db.lock") (Self-Heal)
-            Process->>FS: Retry lock creation
-        else Process is Alive
-            Process->>Process: Sleep 100ms & Retry
-        end
-    else Lock file created successfully
-        FS-->>Process: Return File Descriptor
-        Process->>FS: readFileSync("db.json")
-        Process->>Process: Execute Transaction Logic (fn)
-        Process->>FS: writeFileSync("db.json.tmp")
-        Process->>FS: renameSync("db.json.tmp", "db.json") (Atomic Commit)
-        Process->>FS: unlinkSync("db.lock") (Release Lock)
-    end
-```
-
 ---
 
-### C. Worker Heartbeat and Crash Recovery Flow
+### B. Worker Heartbeat and Crash Recovery Flow
 ```mermaid
 flowchart TD
     A[Worker Starts] --> B[Start 1s Background Interval]
@@ -97,7 +68,7 @@ flowchart TD
 
 ---
 
-### D. Database Schema & Relationships (Entity-Relationship Diagram)
+### C. Database Schema & Relationships (Entity-Relationship Diagram)
 ```mermaid
 erDiagram
     CONFIG {
@@ -131,7 +102,7 @@ erDiagram
 
 ---
 
-### E. Function Call Flow Diagram
+### D. Function Call Flow Diagram
 ```mermaid
 flowchart TD
     subgraph CLI_Layer [CLI Controller: bin/queuectl.js]
