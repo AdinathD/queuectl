@@ -9,7 +9,6 @@ function startServer(port = 3001) {
   app.use(cors());
   app.use(express.json());
 
-  // Log all requests for ease of debugging
   app.use((req, res, next) => {
     console.log(`[API Server] ${req.method} ${req.path}`);
     next();

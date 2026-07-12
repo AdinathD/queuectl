@@ -36,14 +36,11 @@ function cleanupAndExit() {
  */
 function runWorker() {
   console.log(`[Worker ${process.pid}] Started job processing loop.`);
-
-  // Send heartbeats continuously in background (even during long jobs)
   heartbeatInterval = setInterval(() => {
     const status = currentJob ? `executing ${currentJob.id}` : 'polling';
     workerHeartbeat(process.pid, status);
   }, 1000);
-
-  // Send an immediate first heartbeat so status immediately reflects active state
+  // first heartbeat
   workerHeartbeat(process.pid, 'polling');
 
   function poll() {
@@ -121,7 +118,7 @@ function runWorker() {
         eligibleJob.state = 'processing';
         eligibleJob.worker_pid = process.pid;
         eligibleJob.updated_at = now.toISOString();
-        return { ...eligibleJob }; // return a snapshot copy
+        return { ...eligibleJob };
       }
       return null;
     });
@@ -131,7 +128,6 @@ function runWorker() {
         cleanupAndExit();
         return;
       }
-      // Nothing to process, poll again in 1 second
       setTimeout(poll, 1000);
       return;
     }
@@ -194,7 +190,6 @@ function runWorker() {
               console.log(`[Worker ${process.pid}] Job ${job.id} exhausted all retries. Moved to Dead Letter Queue (DLQ).`);
             } else {
               dbJob.state = 'failed';
-              // Exponential Backoff: delay = base^attempts seconds
               const delaySeconds = Math.pow(backoffBase, newAttempts);
               const runAtTime = new Date(Date.now() + delaySeconds * 1000).toISOString();
               dbJob.run_at = runAtTime;
@@ -210,17 +205,16 @@ function runWorker() {
           if (dbJob) {
             dbJob.state = 'completed';
             dbJob.updated_at = now;
-            delete dbJob.worker_pid; // Clear owner PID on success
+            delete dbJob.worker_pid;
           }
         });
       }
 
-      // Immediately look for next job
       setTimeout(poll, 100);
     });
   }
 
-  // Start polling loop
+ 
   poll();
 }
 

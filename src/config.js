@@ -11,7 +11,6 @@ function getConfig() {
     if (!db.config) {
       db.config = { ...DEFAULT_CONFIG };
     }
-    // Return a copy
     return { ...DEFAULT_CONFIG, ...db.config };
   });
 }

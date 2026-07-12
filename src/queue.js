@@ -5,10 +5,7 @@ function generateId() {
   return 'job_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
 }
 
-/**
- * Enqueue a new job.
- * If externalId is provided (e.g. from JSON input command), use it.
- */
+// Enqueue a new job.
 function enqueueJob(command, externalId = null, runAt = null) {
   const cfg = getConfig();
   const now = new Date().toISOString();
@@ -39,7 +36,7 @@ function enqueueJob(command, externalId = null, runAt = null) {
 }
 
 /**
- * Lists jobs filtered by state.
+ *  jobs filtered by state.
  */
 function listJobs(state = null) {
   return transaction((db) => {

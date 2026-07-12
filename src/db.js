@@ -20,17 +20,12 @@ function isProcessAlive(pid) {
   }
 }
 
-/**
- * Acquire lock using fs.openSync with 'wx' flag (exclusive create).
- * If the lock file exists, we will retry after a short delay.
- */
+
 function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
   const start = Date.now();
   while (true) {
     try {
-      // 'wx' flag fails if lock file already exists
       const fd = fs.openSync(LOCK_FILE, 'wx');
-      // Store current process ID for debug/tracking if needed
       fs.writeSync(fd, String(process.pid));
       fs.closeSync(fd);
       return true;
@@ -40,7 +35,7 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
         try {
           const ownerPidStr = fs.readFileSync(LOCK_FILE, 'utf8').trim();
           if (ownerPidStr === "") {
-            // Empty lock file is stale. Delete it immediately.
+            // Empty lock file is stale. Delete it .
             fs.unlinkSync(LOCK_FILE);
           } else {
             const ownerPid = parseInt(ownerPidStr, 10);
@@ -59,7 +54,6 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
         if (Date.now() - start > timeoutMs) {
           throw new Error('Lock acquisition timed out');
         }
-        // Sleep using synchronous block/wait
         const waitTill = Date.now() + retryIntervalMs;
         while (Date.now() < waitTill) { }
       } else {
@@ -69,22 +63,18 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
   }
 }
 
-/**
- * Release lock by unlinking the lock file.
- */
+
 function releaseLock() {
   try {
     if (fs.existsSync(LOCK_FILE)) {
       fs.unlinkSync(LOCK_FILE);
     }
   } catch (err) {
-    // Ignore error if already deleted
+    
   }
 }
 
-/**
- * Read the DB file safely. Returns parsed data.
- */
+
 function readDbRaw() {
   if (!fs.existsSync(DB_FILE)) {
     return { jobs: [], config: {}, activeWorkers: {} };
@@ -93,7 +83,6 @@ function readDbRaw() {
     const content = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(content);
   } catch (err) {
-    // Return default if corrupt or empty
     return { jobs: [], config: {}, activeWorkers: {} };
   }
 }
@@ -113,7 +102,6 @@ function writeDbRaw(data) {
     } catch (err) {
       if ((err.code === 'EPERM' || err.code === 'EACCES') && retries > 1) {
         retries--;
-        // Sleep 10ms
         const waitTill = Date.now() + 10;
         while (Date.now() < waitTill) {}
       } else {
@@ -123,9 +111,7 @@ function writeDbRaw(data) {
   }
 }
 
-/**
- * Run a database operation inside a lock transaction.
- */
+
 function transaction(fn) {
   acquireLock();
   try {
