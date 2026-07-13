@@ -33,10 +33,13 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
       if (err.code === 'EEXIST') {
         // Lock file exists, check if it's stale (e.g. process that created it died)
         try {
+          const stats = fs.statSync(LOCK_FILE);
           const ownerPidStr = fs.readFileSync(LOCK_FILE, 'utf8').trim();
           if (ownerPidStr === "") {
-            // Empty lock file is stale. Delete it .
-            fs.unlinkSync(LOCK_FILE);
+            // Empty lock file. Only delete if it has existed for at least 5 seconds.
+            if (Date.now() - stats.mtimeMs > 5000) {
+              fs.unlinkSync(LOCK_FILE);
+            }
           } else {
             const ownerPid = parseInt(ownerPidStr, 10);
             if (!isNaN(ownerPid)) {
@@ -45,8 +48,10 @@ function acquireLock(timeoutMs = 10000, retryIntervalMs = 50) {
                 fs.unlinkSync(LOCK_FILE);
               }
             } else {
-              // Invalid PID format is stale. Delete it.
-              fs.unlinkSync(LOCK_FILE);
+              // Invalid PID format is stale. Delete it if it's at least 5 seconds old.
+              if (Date.now() - stats.mtimeMs > 5000) {
+                fs.unlinkSync(LOCK_FILE);
+              }
             }
           }
         } catch (_) { }
@@ -94,7 +99,7 @@ function writeDbRaw(data) {
   const tempPath = `${DB_FILE}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
   
-  let retries = 5;
+  let retries = 10;
   while (retries > 0) {
     try {
       fs.renameSync(tempPath, DB_FILE);
